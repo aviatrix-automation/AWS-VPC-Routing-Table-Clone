@@ -4,20 +4,26 @@ import csv
 
 # Define the command line arguments
 parser = argparse.ArgumentParser()
+group = parser.add_mutually_exclusive_group(required=True)
+group.add_argument('--csv', help='The path to the CSV file containing VPC IDs')
+group.add_argument('--vpc-ids', nargs='+', help='The IDs of the VPCs (space separated)')
+
 parser.add_argument('--region', help='The region name', required=True)
-parser.add_argument('--csv', help='The path to the CSV file containing VPC IDs', required=True)
 args = parser.parse_args()
 
 # Initialize the AWS EC2 client
 ec2 = boto3.client('ec2', region_name=args.region)
 
 # Read the VPC IDs from the CSV file
-vpc_ids = []
-with open(args.csv, 'r') as f:
-    reader = csv.reader(f)
-    for row in reader:
-        vpc_ids.append(row[0])
-
+if args.csv:
+    vpc_ids = []
+    with open(args.csv, 'r') as f:
+        reader = csv.reader(f)
+        for row in reader:
+            vpc_ids.append(row[0])
+else:
+    vpc_ids = args.vpc_ids
+    
 for vpc_id in vpc_ids:
     # Retrieve the route tables for the current VPC
     route_tables = ec2.describe_route_tables(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}])['RouteTables']
@@ -50,12 +56,12 @@ for vpc_id in vpc_ids:
                     GatewayId=route['GatewayId'],
                     RouteTableId=new_route_table_id
                 )
-#           elif 'TransitGatewayId' in route:
-#               ec2.create_route(
-#                   DestinationCidrBlock=route['DestinationCidrBlock'],
-#                   TransitGatewayId='tgw-08bd8dcab1f3487eb',
-#                   RouteTableId=new_route_table_id
-#               )
+            elif 'TransitGatewayId' in route:
+                ec2.create_route(
+                    DestinationCidrBlock=route['DestinationCidrBlock'],
+                    TransitGatewayId='tgw-08bd8dcab1f3487eb',
+                    RouteTableId=new_route_table_id
+                )
             elif 'NatGatewayId' in route:
                 ec2.create_route(
                     DestinationCidrBlock=route['DestinationCidrBlock'],
